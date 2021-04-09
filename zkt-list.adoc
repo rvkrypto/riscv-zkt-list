@@ -1,0 +1,306 @@
+
+=       Zkt "Constant Time" Instruction List
+
+v0.02: 2021-04-09   Markku-Juhani O. Saarinen (Ed.) and contributors.
+
+The Zkt extension attests that the machine has data-independent execution time
+for a safe subset of instructions. This property is commonly called
+_"constant-time"_ although should not be taken with that literal meaning.
+
+All currently proposed cryptographic instructions (scalar K extension) are on
+this list, together with a set of relevant supporting instructions from
+I, M, C, and B extensions.
+
+NOTE: Failure to prevent leakage of sensitive parameters via the direct timing
+channel is considered a serious security vulnerability and will typically result
+in a CERT CVE security advisory.
+
+
+== Scope and Goal
+
+An "ISA contract" is made between a programmer and the RISC-V implementation
+that Zkt instructions do not leak information about processed secret data
+(plaintext, keying information, or other "sensitive security parameters" --
+FIPS 140-3 term).
+
+Currently, the scope of this document is within scalar RV32/RV64 processors.
+Vector cryptography instructions (and appropriate vector support instructions)
+will be added later, as will other security-related functions that wish
+to assert leakage-free execution latency properties.
+
+Loads, stores, conditional branches are excluded, along with a set of
+instructions that are rarely necessary to process secret data. Also excluded
+are instructions for which workarounds exist in standard cryptographic
+middleware due to limitations of other ISA processors.
+
+The stated goal is that OpenSSL, BoringSSL (Android), the Linux Kernel,
+and similar trusted software will not have directly observable
+timing side channels when compiled and running on a Zkt-enabled RISC-V target.
+The Xkt extension explicitly formalizes the latency assumptions made by
+cryptography developers.
+
+WARNING: Programming techniques can only mitigate leakage directly caused by
+arithmetic, caches, and branches. Other ISAs have had microarchitectural
+issues such as Spectre, Meltdown, Speculative Store Bypass, Rogue System
+Register Read, Lazy FP State Restore, Bounds Check Bypass Store, TLBleed,
+and L1TF/Foreshadow, etc. See e.g.
+https://github.com/nsacyber/Hardware-and-Firmware-Security-Guidance
+
+
+== Some Notes on Rationale
+
+* The architectural testing approach will be only semi-formal and pragmatic;
+the goal is to prevent attacks that utilize timing side channels. These attacks
+are much more powerful than was realized before 2010s, which led to a
+significant mitigation effort in current cryptographic codebases.
+* Cryptography developers use static and dynamic security testing tools
+to trace the handling of secret information and detect occasions where it
+enters influences a branch or is used for a table lookup.
+* Binary executables should not contain secrets in the instruction encodings
+(Kerckhoffs's principle), so instruction timing may leak information about
+immediates, ordering of input registers, etc. There may be an exception to this
+in systems where a binary loader modifies the executable for purposes of
+relocation -- and it is desirable to keep the executable location secret.
+This is why instructions such as LUI, AUIPC, and ADDI are on the list.
+* Floating point (F, D, Q, L extensions) are excluded from the constant-time
+requirement at the moment as they have very few applications in standardized
+cryptography. We may consider adding D (double precision) add, sub, multiply
+as a constant time requirement on those targets that have D -- in case an
+algorithm (such as the PQC Signature algorithm Falcon) becomes critical.
+*  Cryptographers typically assume division to be variable-time (while
+multiplication is constant time) and implement their Montgomery reduction
+routines with that assumption.
+* Open item: We could make division “half-constant time” by requiring that
+div and rem latency is independent of the dividend (rs1). Different values of
+rs2 (e.g. 0) may have a different latency.
+* Zicsr, Zifencei excluded, apart from specific formats related to Krypto and
+timing status, to be discussed.
+* Some instructions are on the list simply because they we see no harm in
+including them in testing scope.
+
+== Background Information
+
+For background information on secure programming "models", see:
+
+* Adam Langley: _"ctgrind."_ (This is from 2010 but is still relevant.)
+https://www.imperialviolet.org/2010/04/01/ctgrind.html
+* Thomas Pornin: _"Why Constant-Time Crypto?"_ (A great introduction to timing assumptions.) https://www.bearssl.org/constanttime.html
+* Jean-Philippe Aumasson: _"Guidelines for low-level cryptography software."_
+(A list of recommendations.) https://github.com/veorq/cryptocoding
+* Peter Schwabe: _"Timing Attacks and Countermeasures."_
+(Lecture slides -- nice references.)
+https://summerschool-croatia.cs.ru.nl/2016/slides/PeterSchwabe.pdf
+* For early examples of timing attack vulnerabilities, see
+https://www.kb.cert.org/vuls/id/997481 and related academic papers.
+
+
+== Zkt listings
+
+Instructions inside (parenthses) are not part of the Zkt set, but are listed
+here for completeness. 
+
+===    RVI (Base Instruction Set)
+
+Only basic arithmetic and SLT* (for carry computations) included.
+
+----
+    LUI             Zkt I
+    AUIPC           Zkt I
+    (JAL)               I
+    (JALR)              I
+    (BEQ)               I
+    (BNE)               I
+    (BLT)               I
+    (BGE)               I
+    (BLTU)              I
+    (BGEU)              I
+    (LB)                I
+    (LH)                I
+    (LW)                I
+    (LBU)               I
+    (LHU)               I
+    (SB)                I
+    (SH)                I
+    (SW)                I
+    ADDI            Zkt I
+    SLTI            Zkt I
+    SLTIU           Zkt I
+    XORI            Zkt I
+    ORI             Zkt I
+    ANDI            Zkt I
+    SLLI            Zkt I
+    SRLI            Zkt I
+    SRAI            Zkt I
+    ADD             Zkt I
+    SUB             Zkt I
+    SLL             Zkt I
+    SLT             Zkt I
+    SLTU            Zkt I
+    XOR             Zkt I
+    SRL             Zkt I
+    SRA             Zkt I
+    OR              Zkt I
+    AND             Zkt I
+    (FENCE)             I
+    (ECALL)             I
+    (EBREAK)            I
+
+    (LWU)               I
+    (LD)                I
+    (SD)                I
+    SLLI            Zkt I
+    SRLI            Zkt I
+    SRAI            Zkt I
+    ADDIW           Zkt I
+    SLLIW           Zkt I
+    SRLIW           Zkt I
+    SRAIW           Zkt I
+    ADDW            Zkt I
+    SUBW            Zkt I
+    SLLW            Zkt I
+    SRLW            Zkt I
+    SRAW            Zkt I
+----
+
+===    RVM (Multiply)
+
+Multiplication is included, Division and remaindering excluded.
+----
+    MUL             Zkt M
+    MULH            Zkt M
+    MULHSU          Zkt M
+    MULHU           Zkt M
+    (DIV)               M
+    (DIVU)              M
+    (REM)               M
+    (REMU)              M
+
+    MULW            Zkt M
+    (DIVW)              M
+    (DIVUW)             M
+    (REMW)              M
+    (REMUW)             M
+----
+
+===    RVC (Compressed)
+
+Same criteria as in RVI. Organized by “quadrants”
+
+----
+    (C.ADDI4SPN)        C
+    (C.FLD)             C
+    (C.LQ)              C
+    (C.LW)              C
+    (C.FLW)             C
+    (C.LD)              C
+    (C.FSD)             C
+    (C.SQ)              C
+    (C.SW)              C
+    (C.FSW)             C
+    (C.SD)              C
+    C.NOP           Zkt C
+    C.ADDI          Zkt C
+    (C.JAL)             C
+    C.ADDIW         Zkt C
+    (C.LI)              C
+    (C.ADDI16SP)        C
+    C.LUI           Zkt C
+    C.SRLI          Zkt C
+    C.SRLI64        Zkt C
+    C.SRAI          Zkt C
+    C.SRAI64        Zkt C
+    C.ANDI          Zkt C
+    C.SUB           Zkt C
+    C.XOR           Zkt C
+    C.OR            Zkt C
+    C.AND           Zkt C
+    C.SUBW          Zkt C
+    C.ADDW          Zkt C
+    (C.J)               C
+    (C.BEQZ)            C
+    (C.BNEZ)            C
+    C.SLLI          Zkt C
+    C.SLLI64        Zkt C
+    (C.FLDSP)           C
+    (C.LQSP)            C
+    (C.LWSP)            C
+    (C.FLWSP)           C
+    (C.LDSP)            C
+    (C.JR)              C
+    C.MV            Zkt C
+    (C.EBREAK)          C
+    (C.JALR)            C
+    C.ADD           Zkt C
+    (C.FSDSP)           C
+    (C.SQSP)            C
+    (C.SWSP)            C
+    (C.FSWSP)           C
+    (C.SDSP)
+----
+
+===    RVK (Scalar Cryptography)
+
+All K specific, non-debug instructions included.
+
+----
+    AES32DSI        Zkt K
+    AES32DSMI       Zkt K
+    AES32ESI        Zkt K
+    AES32ESMI       Zkt K
+    AES64DS         Zkt K
+    AES64DSM        Zkt K
+    AES64ES         Zkt K
+    AES64ESM        Zkt K
+    AES64IM         Zkt K
+    AES64KS1I       Zkt K
+    AES64KS2        Zkt K
+    SHA256SIG0      Zkt K
+    SHA256SIG1      Zkt K
+    SHA256SUM0      Zkt K
+    SHA256SUM1      Zkt K
+    SHA512SIG0H     Zkt K
+    SHA512SIG0L     Zkt K
+    SHA512SIG1H     Zkt K
+    SHA512SIG1L     Zkt K
+    SHA512SUM0R     Zkt K
+    SHA512SUM1R     Zkt K
+    SHA512SIG0      Zkt K
+    SHA512SIG1      Zkt K
+    SHA512SUM0      Zkt K
+    SHA512SUM1      Zkt K
+    SM3P0           Zkt K
+    SM3P1           Zkt K
+    SM4ED           Zkt K
+    SM4KS           Zkt K
+    POLLENTROPY     Zkt K
+    (GETNOISE)          K
+----
+
+=== RVB (Bitmanip)
+
+The "Zkb" subset of bitmanip in entirety included. Note on REV, ZIP, UNZIP;
+these are GREVI, SHFLI, UNSHFLI pseudoinstructions.
+
+----
+    CLMUL           Zkt B
+    CLMULH          Zkt B
+    XPERM.N         Zkt B
+    XPERM.B         Zkt B
+    ROR             Zkt B
+    ROL             Zkt B
+    RORI            Zkt B
+    RORIW           Zkt B
+    ANDN            Zkt B
+    ORN             Zkt B
+    XNOR            Zkt B
+    PACK            Zkt B
+    PACKU           Zkt B
+    PACKH           Zkt B
+    PACKW           Zkt B
+    PACKUW          Zkt B
+    REV.B           Zkt B
+    REV8            Zkt B
+    REV8.W          Zkt B
+    ZIP             Zkt B
+    UNZIP           Zkt B
+----
