@@ -36,7 +36,7 @@ middleware due to limitations of other ISA processors.
 The stated goal is that OpenSSL, BoringSSL (Android), the Linux Kernel,
 and similar trusted software will not have directly observable
 timing side channels when compiled and running on a Zkt-enabled RISC-V target.
-The Xkt extension explicitly formalizes the latency assumptions made by
+The Zkt extension explicitly formalizes the latency assumptions made by
 cryptography developers.
 
 WARNING: Programming techniques can only mitigate leakage directly caused by
