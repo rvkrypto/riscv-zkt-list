@@ -31,7 +31,7 @@ to assert leakage-free execution latency properties.
 Loads, stores, conditional branches are excluded, along with a set of
 instructions that are rarely necessary to process secret data. Also excluded
 are instructions for which workarounds exist in standard cryptographic
-middleware due to limitations of other ISA processors.
+middleware due to the limitations of other ISA processors.
 
 The stated goal is that OpenSSL, BoringSSL (Android), the Linux Kernel,
 and similar trusted software will not have directly observable
@@ -50,23 +50,26 @@ https://github.com/nsacyber/Hardware-and-Firmware-Security-Guidance
 == Some Notes on Rationale
 
 * The architectural testing approach will be only semi-formal and pragmatic;
-the goal is to prevent attacks that utilize timing side channels. These attacks
-are much more powerful than was realized before 2010s, which led to a
-significant mitigation effort in current cryptographic codebases.
-* Cryptography developers use static and dynamic security testing tools
-to trace the handling of secret information and detect occasions where it
-enters influences a branch or is used for a table lookup.
+_security by design_ can usually be achieved via conscious implementation of
+relevant iterative multi-cycle instructions or instructions composed of
+micro-ops to avoid data-dependant latency.
 * Binary executables should not contain secrets in the instruction encodings
 (Kerckhoffs's principle), so instruction timing may leak information about
 immediates, ordering of input registers, etc. There may be an exception to this
 in systems where a binary loader modifies the executable for purposes of
-relocation -- and it is desirable to keep the executable location secret.
+relocation -- and it is desirable to keep the execution location (PC) secret.
 This is why instructions such as LUI, AUIPC, and ADDI are on the list.
 * Floating point (F, D, Q, L extensions) are excluded from the constant-time
 requirement at the moment as they have very few applications in standardized
 cryptography. We may consider adding D (double precision) add, sub, multiply
 as a constant time requirement on those targets that have D -- in case an
 algorithm (such as the PQC Signature algorithm Falcon) becomes critical.
+* Timing attacks are much more powerful than was realized before the 2010s,
+which has led to a significant mitigation effort in current cryptographic
+codebases.
+* Cryptography developers use static and dynamic security testing tools
+to trace the handling of secret information and detect occasions where it
+enters influences a branch or is used for a table lookup.
 *  Cryptographers typically assume division to be variable-time (while
 multiplication is constant time) and implement their Montgomery reduction
 routines with that assumption.
@@ -74,8 +77,8 @@ routines with that assumption.
 div and rem latency is independent of the dividend (rs1). Different values of
 rs2 (e.g. 0) may have a different latency.
 * Zicsr, Zifencei excluded, apart from specific formats related to Krypto and
-timing status, to be discussed.
-* Some instructions are on the list simply because they we see no harm in
+timing, to be discussed.
+* Some instructions are on the list simply because we see no harm in
 including them in testing scope.
 
 == Background Information
@@ -96,12 +99,12 @@ https://www.kb.cert.org/vuls/id/997481 and related academic papers.
 
 == Zkt listings
 
-Instructions inside (parenthses) are not part of the Zkt set, but are listed
+Instructions inside (parentheses) are not part of the Zkt set, but are listed
 here for completeness. 
 
 ===    RVI (Base Instruction Set)
 
-Only basic arithmetic and SLT* (for carry computations) included.
+Only basic arithmetic and SLT* (for carry computations) are included.
 
 ----
     LUI             Zkt I
@@ -164,7 +167,7 @@ Only basic arithmetic and SLT* (for carry computations) included.
 
 ===    RVM (Multiply)
 
-Multiplication is included, Division and remaindering excluded.
+Multiplication is included; division and remaindering excluded.
 ----
     MUL             Zkt M
     MULH            Zkt M
@@ -240,7 +243,7 @@ Same criteria as in RVI. Organized by “quadrants”
 
 ===    RVK (Scalar Cryptography)
 
-All K specific, non-debug instructions included.
+All K-specific, non-debug instructions included.
 
 ----
     AES32DSI        Zkt K
@@ -278,7 +281,7 @@ All K specific, non-debug instructions included.
 
 === RVB (Bitmanip)
 
-The "Zkb" subset of bitmanip in entirety included. Note on REV, ZIP, UNZIP;
+The "Zkb" subset of bitmanip in its entirety included. Note on REV, ZIP, UNZIP;
 these are GREVI, SHFLI, UNSHFLI pseudoinstructions.
 
 ----
