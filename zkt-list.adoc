@@ -21,7 +21,7 @@ in a CERT CVE security advisory.
 An "ISA contract" is made between a programmer and the RISC-V implementation
 that Zkt instructions do not leak information about processed secret data
 (plaintext, keying information, or other "sensitive security parameters" --
-FIPS 140-3 term).
+FIPS 140-3 term) through differences in execution latency.
 
 Currently, the scope of this document is within scalar RV32/RV64 processors.
 Vector cryptography instructions (and appropriate vector support instructions)
@@ -45,6 +45,8 @@ issues such as Spectre, Meltdown, Speculative Store Bypass, Rogue System
 Register Read, Lazy FP State Restore, Bounds Check Bypass Store, TLBleed,
 and L1TF/Foreshadow, etc. See e.g.
 https://github.com/nsacyber/Hardware-and-Firmware-Security-Guidance
+It is not within the remit of this proposal to mitigate these
+_microarchitectural_ leakages.
 
 
 == Some Notes on Rationale
