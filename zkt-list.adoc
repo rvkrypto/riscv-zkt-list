@@ -3,17 +3,17 @@
 
 v0.02: 2021-04-09   Markku-Juhani O. Saarinen (Ed.) and contributors.
 
-The Zkt extension attests that the machine has data-independent execution time
-for a safe subset of instructions. This property is commonly called
-_"constant-time"_ although should not be taken with that literal meaning.
+The Zkt extension attests that the machine has data-independent execution
+time for a safe subset of instructions. This property is commonly called
+"constant-time"_ although should not be taken with that literal meaning.
 
 All currently proposed cryptographic instructions (scalar K extension) are on
 this list, together with a set of relevant supporting instructions from
 I, M, C, and B extensions.
 
-NOTE: Failure to prevent leakage of sensitive parameters via the direct timing
-channel is considered a serious security vulnerability and will typically result
-in a CERT CVE security advisory.
+NOTE: Failure to prevent leakage of sensitive parameters via the direct
+timing channel is considered a serious security vulnerability and will
+typically result in a CERT CVE security advisory.
 
 
 == Scope and Goal
