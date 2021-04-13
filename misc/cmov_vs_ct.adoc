@@ -1,0 +1,158 @@
+_(Formatted from:)_
+----
+Date: Sun, 11 Apr 2021 21:32:18 +0100
+Subject: CMOV vs Constant-Time
+From: "Markku-Juhani O. Saarinen" <mjos@pqshield.com>
+To: "Tech-crypto-ext@lists.riscv.org" <tech-crypto-ext@lists.riscv.org>,
+"tech-bitmanip@lists.riscv.org." <tech-bitmanip@lists.riscv.org>
+----
+
+Hello Bitmanip and Krypto,
+
+A colleague asked: _"Why `CMOV` is not on the constant-time Zkt list -- the
+Bitmanip specification says that it is helpful for cryptography?"_
+https://github.com/rvkrypto/riscv-zkt-list
+
+*1.* We were a bit surprised by this observation since the base reason is that
+CMOV is *not* a part of the cryptography extension, and only that subset of
+Bitmanip is included in Zkt. There are no ternary instructions in Krypto.
+At least in the Bitmanip current draft, the ternary "Zbt" set is not part of
+base "B" either.
+
+So I'd kindly request removing the reference to constant-time cryptographic
+programming from the Bitmanip discussion concerning `CMOV` -- as CETG is not
+recommending it for this purpose anymore.
+
+Below is a little bit of rationale below why `CMOV` was not thought to be
+critically needed for RISC-V cryptography (at least critical enough to warrant
+a three-source instruction) and why it might be more beneficial to actually
+allow it to have a data-dependent latency if implemented for non-cryptographic
+purposes -- such as handling conditionals, which seems its natural application.
+
+
+*2.* Recall that `CMOV` sets `rd = rs3` if `rs2 == 0` and `rd = rs1` otherwise.
+
+  cmov rd, rs2, rs1, rs3  // rd = rs2 ? rs1 : rs3
+
+I'd imagine that compilers would generate it specifically for the `?`
+conditional ternary operator, which is essentially banned in cryptographic
+(constant time) code. Cryptographers do functionally similar things via
+binary logic code sequences that are non-trivial (if not impossible) for
+the compiler to match to `CMOV`'s zero / non-zero Boolean semantics. These
+constant-time code sequences are the way they are precisely so that the
+compiler would not optimize them into conditionals! :-)
+
+In C, the `?`` conditional operator `cond ? expr1 : expr2` does not evaluate
+`expr1`/`expr2` if cond is false/true. In constant-time code, both `expr1` 
+and `expr2` must be evaluated as the memory access pattern must remain
+independent of secrets.
+
+Hence, if used in constant time code, it would probably have to be invoked
+via assembly language (or built-in intrinsics) to guarantee that it is
+generated instead of a branching conditional.
+
+Now, if I switch hats from a cryptographer to a processor architect 
+(in which role I am much less experienced), it would seem to be advantageous
+to *not* require `CMOV` to be constant time. Note that an instruction like
+
+  cmov x1, x2, x1, x3
+
+requires no fetching/storing of either `x1` or `x3` if the CPU already knows
+that `x2` is nonzero; hence it would possibly save the second micro-op;
+run faster; easier on the pipeline.
+
+(To be honest, as a processor architect I would be reluctant to add the
+complexity of ternary instructions in the first place.. but clearly, not
+everyone shares this view as they have popped up in various places.)
+
+
+*3.* The `CMOV` type functionality that one might want in symmetric
+cryptography is actually provided by the "bit-selection" `CMIX` instruction,
+also in Zkt and not part of base `B` either:
+
+  cmix rd, rs2, rs1, rs3  //  rd = (rs1 & rs2) | (rs3 & ~rs2)
+
+This type of function can be found in the "Choose" nonlinear function of
+SHA-2, where we currently recommend the 3-instruction sequence:
+
+  Ch(x,y,z)  = (z ^ (x & (y ^ z)))
+
+However, this was not found to be quantitively as important as the linear
+mixing Sig/Sum functions that became part of the K spec specifically for SHA2.
+
+A list of some good 3-input binary logic function sequences is at:
+https://github.com/riscv/riscv-crypto/blob/master/doc/supp/bitlogic.adoc
+
+Hopefully, CPUs will be able to fuse some such binary logic sequences.
+
+
+*4.* The `CMIX` (not `CMOV`) function also matches with the
+`constant_time_select()` functions provided at:
+https://github.com/openssl/openssl/blob/master/include/internal/constant_time.h
+
+While in use in many places, their most important property is to be constant
+time, and being somewhat fast is only secondary. These are principally used
+in relatively high-level formatting or padding functions, or to provide things
+like Fujisaki-Okamoto "implicit rejection" in the final step of PQC KEMs.
+These functions are rarely found in inner loops that do the heavy lifting,
+e.g., those that multiply large integers or polynomial rings, or symmetric
+cipher inner loops.
+
+
+*5.* `CMOV` (x86) and `CSEL` (ARM) have indeed been used for high-performance
+(assembly language) constant-time elliptic curve implementations. I did not
+miss it very much in my own elliptic curve implementation work, especially
+as I assumed that the CMOV instruction would be slower than standard 2-input
+Boolean functions. Inner loops benefited most from appropriate Redundant
+Binary Representation (RBR) arithmetic due to the lack of carry flags in
+RISC-V, but that is another matter.
+
+To me, the 2-output conditional swap (`CSWAP`) operation seems to be perhaps
+more valuable as a primitive than `CMOV`/`CMIX` for constant-time Montgomery
+ladders, as used in elliptic curve scalar multiplication. You'll find `CSWAP`
+in OpenSSL code, e.g. `ec_mult.c` and `curve25519.c` and also in reference
+below.
+
+Given "cond" (which has a value 0 or ~0), the pair (x,y) is swapped by the
+sequence
+
+  t = x ^ y;
+  t &= cond;  // C.AND
+  x ^= t;     // C.XOR
+  y ^= t;     // C.XOR (one additional in relation to CMIX)
+
+Two complex instructions replacing four fast instructions (of which 3 are
+compressed) does not seem like a particularly good trade-off. We could
+potentially propose this is an additional fused sequence. Again, it is not
+as crucial as the multiplies and carries management are for RISC-V Elliptic
+Curve arithmetic.
+
+
+*6.* Future use cases: I'm sure we'll revisit this issue for the vector
+cryptography extension.
+
+None of the NIST Post-Quantum finalist algorithms have had a prominent need
+for `CMOV` in their inner loops. (I expect that the RISC-V ISA will be
+around for much longer than Elliptic Curve cryptography which is facing
+depreciation after a transition period, at least after the PQC algorithms
+become official NIST/FIPS cryptography standards.)
+
+
+*7.* Some additional pointers
+
+- P. Schwabe, B. Viguier, T. Weerwag, and F. Wiedijk.
+"A Coq proof of the correctness of X25519 in TweetNaCl"
+2021 IEEE 34th Computer Security Foundations Symposium (CSF)
+https://eprint.iacr.org/2021/428
+_(A recent reference with CSWAP discussion.)_
+
+
+- E. Nascimento, L. Chmielewski, D. Oswald, and P. Schwabe.
+"Attacking embedded ECC implementations through cmov side channels."
+Selected Areas in Cryptography (SAC 2016)
+https://eprint.iacr.org/2016/923
+_(`cmov` techniques may be handy for constant-time, but introduce single-trace
+vulnerabilities in other side-channel attacks. Perhaps our implementation
+techniques will move to a completely different direction.)_
+
+
