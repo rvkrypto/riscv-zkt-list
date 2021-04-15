@@ -90,7 +90,7 @@ compliant; however, if they claim to have Zkt and implement any of the listed in
 basic RV32I and RV64I cores (without Multiply, Compressed, Bitmanip, or
 Cryptographic extensions) are technically compliant with Zkt. A constant-time
 AES can be implemented on them using "bit-slice" techniques, but it will be 
-excruciatingly slow when compared to an implementation with AES instructions.
+excruciatingly slow when compared to implementation with AES instructions.
 Without Zkt there are no guarantees of even a bit-sliced implementation being
 secure.
 
