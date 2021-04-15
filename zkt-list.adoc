@@ -74,7 +74,17 @@ which has led to a significant mitigation effort in current cryptographic
 codebases.
 * Cryptography developers use static and dynamic security testing tools
 to trace the handling of secret information and detect occasions where it
-enters influences a branch or is used for a table lookup.
+influences a branch or is used for a table lookup.
+* The rules used by audit tools are relatively simple to understand.
+Very briefly; we call the plaintext, secret keys, expanded keys, nonces,
+and other such variables "secrets". A secret variable (arithmetically)
+modifying any other variable/register turns that into a secret too.
+If a secret ends up in address calculation affecting a load or store, that
+is a violation. If a secret affects a branch's condition, that is also a
+violation. A secret variable location or register becomes a non-secret via
+specific zeroization/sanitization or by being declared ciphertext 
+(or otherwise no-longer-secret information). In essence, secrets can only
+"touch" instructions on the Zkt list while they are secrets.
 *  Cryptographers typically assume division to be variable-time (while
 multiplication is constant time) and implement their Montgomery reduction
 routines with that assumption.
