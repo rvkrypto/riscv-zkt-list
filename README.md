@@ -1,5 +1,7 @@
 # riscv-zkt-list
 
+**NOTE** *2021-07-24. Zkt has been moved to the main spec and and passed architectural review. This repo is now archived as historical.*
+
 **Zkt** "safe list". Zkt attests that the machine has data-independent execution time for a set of arithmetic instructions.
 
 Preliminary list (asciidoc): [zkt-list.adoc](zkt-list.adoc).
